@@ -1,0 +1,170 @@
+#Criar uma VM com o GNU/Linux Debian 11
+#Anexar a esta VM, 04 discos rígidos de 10 GB cada um
+Criei a vm debian-11
+#Usando o kvm e o terminal do arch linux adicione 4 discos virtuais de 10G
+$qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-vm-disk2.qcow2 10G
+$qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-vm-disk3.qcow2 10G
+$qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-vm-disk4.qcow2 10G
+$qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-vm-disk5.qcow2 10G
+
+#Anexando os discos criados na vm 
+$sudo virsh attach-disk debian11-vm /var/lib/libvirt/images/debian11-vm-disk2.qcow2 vdb --subdriver=qcow2 --persistent
+$sudo virsh attach-disk debian11-vm /var/lib/libvirt/images/debian11-vm-disk3.qcow2 vdc --subdriver=qcow2 --persistent
+$sudo virsh attach-disk debian11-vm /var/lib/libvirt/images/debian11-vm-disk4.qcow2 vdd --subdriver=qcow2 --persistent
+$sudo virsh attach-disk debian11-vm /var/lib/libvirt/images/debian11-vm-disk5.qcow2 vde --subdriver=qcow2 --persistent
+
+#No terminal do debian 11
+#Atualizar o sistema e baixar o lvm
+$apt update
+$apt install lvm2
+
+#Rode o comando lvmdiskscan e verifique os discos adicionados no passo anterior
+$lvmdiskscan
+
+# Criar PV
+sudo pvcreate /dev/vdb
+sudo pvcreate /dev/vdc
+sudo pvcreate /dev/vdd
+sudo pvcreate /dev/vde
+
+# Criar VG
+$sudo vgcreate discos /dev/vdb /dev/vdc /dev/vdd /dev/vde
+
+# Criar LV
+$lvcreate -L 10G -n lv-1 discos
+$lvcreate -L 10G -n lv-2 discos
+$lvcreate -L 10G -n lv-3 discos
+$lvcreate -L 9.98G -n lv-4 discos
+
+# Formatar partições
+$sudo mkfs.ext4 /dev/discos/lv-1
+$sudo mkfs.ext4 /dev/discos/lv-2
+$sudo mkfs.ext4 /dev/discos/lv-3
+$sudo mkfs.ext4 /dev/discos/lv-4
+
+# Criar pastas para montagem
+$sudo mkdir /mnt-lvm1
+$sudo mkdir /mnt-lvm2
+$sudo mkdir /mnt-lvm3
+$sudo mkdir /mnt-lvm4
+
+# Montar os LVs
+$sudo mount /dev/discos/lv-1 /mnt-lvm1
+$sudo mount /dev/discos/lv-2 /mnt-lvm2
+$sudo mount /dev/discos/lv-3 /mnt-lvm3
+$sudo mount /dev/discos/lv-4 /mnt-lvm4
+
+#Construir um LVM com 03 discos rígidos, 10 GB para a partição fileserver e 10 GB para a partição webserver
+#Usando o kvm e o terminal do arch linux adicione 4 discos virtuais de 10G
+$sudo qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-lvm-disk2.qcow2 10G
+$sudo qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-lvm-disk3.qcow2 10G
+$sudo qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-lvm-disk4.qcow2 10G
+
+#Anexando os discos criados na vm 
+$sudo virsh attach-disk debian11-lvm /var/lib/libvirt/images/debian11-lvm-disk2.qcow2 vdb --subdriver=qcow2 --persistent
+$sudo virsh attach-disk debian11-lvm /var/lib/libvirt/images/debian11-lvm-disk3.qcow2 vdc --subdriver=qcow2 --persistent
+$sudo virsh attach-disk debian11-lvm /var/lib/libvirt/images/debian11-lvm-disk4.qcow2 vdd --subdriver=qcow2 --persistent
+
+#No terminal do debian 11
+#Atualizar o sistema e baixar o lvm
+$apt update
+$apt install lvm2
+
+#Rode o comando lvmdiskscan e verifique os discos adicionados no passo anterior
+$lvmdiskscan
+
+# Listar os discos
+$fdisk -l
+
+# Criar as partições
+$fdisk /dev/vdb
+n
+p
+w
+$fdisk /dev/vdc
+n
+p
+w
+$fdisk /dev/vdd
+n
+p
+w
+
+#Criar PV
+$ pvcreate /dev/vdb1 /dev/vdc1 /dev/vdd1 
+
+$ pvcreate disco-vg /dev/vdb1 /dev/vdc1 /dev/vdd1 
+
+# Criar LV
+$ lvcreate -L 10G -n fileserver disco-vg
+$ lvcreate -L 10G -n webserver disco-vg
+
+#Formatar partições
+$sudo mkfs.ext4 /dev/disco-vg/fileserver
+$sudo mkfs.ext4 /dev/disco-vg/webserver
+
+# Criar pastas para montagem
+mkdir /mnt/fileserver
+mkdir /mnt/webserver
+
+#Montar as partições
+sudo mount /dev/disco-vg/fileserver /mnt/fileserver
+sudo mount /dev/disco-vg/webserver /mnt/webserver
+
+#Redimencionar as partições, 15 GB para a partição fileserver e 05 GB para a partição webserver
+# Diminuir primeiro o webserver para 5G 
+$e2fsck -f /dev/disco-vg/webserver
+$resize2fs /dev/disco-vg/webserver 5G
+$sudo lvresize -L 5G /dev/disco-vg/webserver
+$sudo mount /dev/disco-vg/webserver /mnt/webserver
+$df -h
+
+# Aumnetar fileserver para 15G
+$e2fsck -f /dev/disco-vg/fileserver
+$resize2fs /dev/disco-vg/fileserver 15G
+$sudo lvresize -L 5G /dev/disco-vg/fileserver
+$sudo mount /dev/disco-vg/webserver /mnt/fileserver
+$df -h
+
+#Simular um problema com um dos discos rígidos e trocar o disco rígido com problema pelo quarto disco rígido
+
+#Adicionar disco
+$sudo qemu-img create -f qcow2 /var/lib/libvirt/images/debian11-vm-disk6.qcow2 10G
+$sudo virsh attach-disk debian11-vm /var/lib/libvirt/images/debian11-vm-disk6.qcow2 vdf --subdriver=qcow2 --persistent
+
+#Adicionar o disco no vg lvm
+$pvcreate /dev/vdf
+$vgextend disco-vg /dev/vdf
+
+#Remover o disco com defeito e copiar dados para o disco novo
+$pvmove /dev/vdb /dev/vdf
+$vgreduce disco-vg /dev/vdb
+$pvremove /dev/vdb
+
+#Destruir o LVM.
+
+# Remover lvm
+#Desmontar
+$ umount /mnt/lvm-1
+$ umount /mnt/lvm-2
+$ umount /mnt/lvm-3
+$ umount /mnt/lvm-4
+
+#Remover lv
+$lvremove /dev/disco-vg/lv-1
+$lvremove /dev/disco-vg/lv-2
+$lvremove /dev/disco-vg/lv-3
+$lvremove /dev/disco-vg/lv-4
+
+#Remover vg
+$vgremove disco-vg
+
+#Remover PV
+$pvremove /dev/vdc
+$pvremove /dev/vdd
+$pvremove /dev/vde
+$pvremove /dev/vdf
+
+#Verifcar
+$lsblk
+
