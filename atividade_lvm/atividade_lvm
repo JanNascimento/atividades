@@ -120,7 +120,8 @@ $sudo mount /dev/disco-vg/webserver /mnt/webserver
 $df -h
 
 # Aumnetar fileserver para 15G
-$e2fsck -f /dev/disco-vg/fileserver
+$e2fsck -f /dev/disco-vg/fileserve
+r
 $resize2fs /dev/disco-vg/fileserver 15G
 $sudo lvresize -L 5G /dev/disco-vg/fileserver
 $sudo mount /dev/disco-vg/webserver /mnt/fileserver
@@ -156,8 +157,14 @@ $lvremove /dev/disco-vg/lv-2
 $lvremove /dev/disco-vg/lv-3
 $lvremove /dev/disco-vg/lv-4
 
+#Verificar lv
+$lvdisplay
+
 #Remover vg
 $vgremove disco-vg
+
+#Verificar vg
+$vgdisplay
 
 #Remover PV
 $pvremove /dev/vdc
@@ -165,6 +172,35 @@ $pvremove /dev/vdd
 $pvremove /dev/vde
 $pvremove /dev/vdf
 
+#Verificar pv
+$pvdisplay
+
 #Verifcar
 $lsblk
 
+#Outras informações
+#Adicionar partições lvm no /etc/fstab
+#exemplo de como adicionar uma partição
+$vim /etc/fstab
+"i" para inserir no arquivo
+/dev/vg/lv	/lvm1	ext4	defaults	0	2
+esc+:wq!
+#use este comando para verificar se esta sendo executado corretamente após a alteração
+# este comando monta a partição imediatamente sem a necessidade de reiniciar o sistema
+$mount -a
+#exemplo de como usar o UUID no lugar do caminho
+$ blkid
+ou 
+$ blkid /dev/vg/lv
+$ vim /etc/fstab
+"i" para inserir
+UUID=UUID_Partição	/lvm1	ext4	0	2
+esc+:wq!
+#use este comando para verificar se esta sendo executado corretamente após a alteração
+# este comando monta a partição imediatamente sem a necessidade de reiniciar o sistema
+$mount -a
+#após executar este comando e não retornar nenhum erro, a próxima vez que o sistema for reiniciado a partição será montada automaticamente.
+
+#Atenção ao tipo de sistema de arquivos utilizado na partição
+#Verificar sistema de arquivos
+$df -T
